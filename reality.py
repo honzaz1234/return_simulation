@@ -1,4 +1,10 @@
+import datetime
+import numpy as np
+import pandas as pd
+import yfinance as yf
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
+from scipy.stats import t, norm
 
 class Reality():
 
@@ -19,10 +25,12 @@ class Reality():
         self.person_list.append(person)
 
     def add_instrument(self, instrument):
-        if instrument in self.instrument_list:
-            print('instrument already included')
-            return
+        for inst in self.instrument_list:
+            if inst.name == instrument.name:
+                print('instrument already included')
+                return
         self.instrument_list.append(instrument)
+        self.instrument_data[instrument.name] = [instrument.price_ts[-1]]
 
     def execute_person_behaviour(self, person, behaviour_dict,
                                   income_change=0, acc_list=[], acc_instrument_dict={}):
@@ -73,12 +81,12 @@ class Reality():
     def execute_period(self, behaviour_dict):
         """changes to the accounts/indexes employed and adding money to accounts are decided at the beginning of the period
         calculation of account balances then happens at the end of the period"""
-
+        print('time_period: ' )
         self.t += 1
+        print(str(self.t))
         self.execute_people_behaviour(behaviour_dict=behaviour_dict)
         self.execute_instruments_period()
         self.calculate_all_peeople_accs_totals()
-
 
 
 class RealityDataCollect():
@@ -122,9 +130,7 @@ class RealityDataCollect():
         return instrument_dict
     
     def save_instrument_data(self, instrument, instrument_data):
-        if instrument.name not in instrument_data:
-            instrument_data[instrument.name] = [instrument.price_ts[-1]]
-            print(instrument_data)
+        print(instrument_data)
         instrument_data[instrument.name].append(instrument.current_price)
         return instrument_data
 
@@ -243,10 +249,18 @@ class Account():
         if instrument_name not in self.instrument_dict:
             print('Instrument is not active in current account')
             return
+        print(instrument_name)
+        print(self.owner.reality.instrument_data[instrument_name])
         curr_price = self.owner.reality.instrument_data[instrument_name][-1]
         prev_price = self.owner.reality.instrument_data[instrument_name][-2]
+        print(instrument_name)
+        print('curr_price')
+        print(str(curr_price))
+        print('previous_price')
+        print(str(prev_price))
         multip = (curr_price) / (prev_price)
         print('multip')
+        print(type(multip))
         print(multip)
         self.instrument_dict[instrument_name] = self.instrument_dict[instrument_name] * multip
         print(self.instrument_dict[instrument_name])
@@ -282,15 +296,51 @@ class  Instrument(ABC):
 class Index(Instrument):
 
     def __init__(
-            self, name, reality, type_='index', price_ts=[], current_price=None):
+            self, name, reality, type_='index'):
         super().__init__(name, type_)
-        self.current_price = current_price
-        self.price_ts = price_ts
+        self.price_ts = None
+        self.current_price = None
         self.reality = reality
+        self.returns_ts = None
+        self.returns_degf = None
+        self.returns_scale = None
+        self.returns_mean = None
 
-    def calculate_current_price(self, t, mma_length):
-        self.current_price = self.ts_calc(mma_length)
-        self.price_ts.append(self.current_price)
+    def index_set_up(self):
+        self.get_data()
+        self.calculate_returns()
+        self.set_mean_sd()
+        self.set_current_price()
+        
+    def get_data(self, n_years=30):
+        date_to = datetime.now()
+        date_from = date_to - timedelta(days=365.25 * n_years)
+        date_from = date_from.date()
+        date_to= date_to.date()
+        stock_data = yf.download(
+            self.name, start=date_from, end=date_to, interval="1mo")
+        self.price_ts = list(stock_data['Close'])
+
+    def calculate_returns(self):
+        self.returns_ts = pd.DataFrame(self.price_ts).pct_change().dropna()
+
+    def set_current_price(self):
+        self.current_price = self.price_ts[-1]
+
+    def set_mean_sd(self):
+        loc, scale = norm.fit(np.array(self.returns_ts, dtype=float))
+        #self.returns_degf = df
+        self.returns_mean = loc
+        self.returns_scale = scale
+
+    def calculate_current_price(self):
+        curr_return = norm.rvs( 
+                            loc=self.returns_mean, 
+                            scale=self.returns_scale, 
+                            size=1)[0]
+        print('cur_returns:')
+        print(curr_return)
+        self.current_price = (1 + curr_return) * self.current_price
         print('Current Price: ')
         print(self.current_price)
 
@@ -305,7 +355,7 @@ class Index(Instrument):
         return current_price
             
     def execute_time_period(self, t):
-        self.calculate_current_price(t=t, mma_length=20)
+        self.calculate_current_price()
 
 
 class TransactionAccount(Instrument):

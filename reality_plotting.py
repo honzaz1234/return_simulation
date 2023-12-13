@@ -24,7 +24,8 @@ class DataPlotting():
             inst_list=self.reality.instrument_list
         )
 
-    def plot_all_indexes_separatedly(self, n_cols=3):
+    def plot_all_indexes_separatedly(
+            self, n_cols=3, plot_width=None, plot_height=None):
         p = Plots()
         p.plot_vals_separately(df=self.index_df,
                                filter_col='name', 
@@ -32,28 +33,36 @@ class DataPlotting():
                                col_y='price',
                                n_cols=n_cols)
         
-    def plot_all_indexes_for_person_one_plot(self, person):
+    def plot_all_indexes_for_person_one_plot(
+            self, person, plot_width=None, plot_height=None):
         df_person = self.people_df[self.people_df['person'] == person]
         sns.lineplot(data=df_person, x="t", y="balance", hue="inst")
 
-    def plot_all_indexes_for_person_separate_plots(self, person, n_cols=3):
+    def plot_all_indexes_for_person_separate_plots(
+            self, person, n_cols=3, plot_width=None, plot_heigth=None):
         df_person = self.people_df[self.people_df['person'] == person]
         p = Plots()
         p.plot_vals_separately(df=df_person,
                                filter_col='inst', 
                                col_x='t', 
                                col_y='balance',
-                               n_cols=n_cols)
+                               n_cols=n_cols,
+                               plot_height=plot_heigth,
+                               plot_width=plot_width)
 
-    def plot_all_indexes_for_all_people(self, n_cols=3):
+    def plot_all_indexes_for_all_people(
+            self, n_cols=3, plot_width=None, plot_height=None):
         p = Plots()
-        p.plot_vals_separately(df=self.people_df,
+        plot = p.plot_vals_separately(df=self.people_df,
                                filter_col='person', 
                                col_x='t', 
                                col_y='balance',
                                hue_col='inst',
-                               n_cols=n_cols
+                               n_cols=n_cols,
+                               plot_height=plot_height,
+                               plot_width=plot_width
                                 )
+        return plot
 
 class DFCreator():
 
@@ -71,7 +80,6 @@ class DFCreator():
             columns=['balance'])
         account_df.reset_index(inplace=True)
         account_df.rename(columns={'index': 'inst'}, inplace=True)
-        print(account_df.columns)
         return account_df
     
     def get_period_df(self, period_dict):
@@ -141,35 +149,48 @@ class Plots():
     def __init__(self):
         pass
 
-    def plot(self, df, col_x, col_y, ax, hue_col):
+    def plot(self, df, col_x, col_y, ax, hue_col, title=None):
         if ax is None:
             fig, ax = plt.subplot()
-        sns.lineplot(data=df, x=col_x, y=col_y, ax=ax, hue=hue_col)
+        plot = sns.lineplot(data=df, x=col_x, y=col_y, ax=ax, hue=hue_col)
+        self.set_plot_attributes(
+            ax=ax, xlabel=col_x, ylabel=col_y, title=title)
+        return plot
+
+    def set_plot_attributes(self, ax, xlabel, ylabel, title):
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
 
     def plot_wrapper(
-            self, n_rows, n_cols, axes, row_n, col_n, df, col_x, col_y, hue_col=None):
-            if n_rows == 1 and n_cols == 1:
-                ax_1 = axes
-            elif n_rows == 1:
-                ax_1 = axes[col_n]
-            elif n_cols == 1:
-                ax_1 = axes[row_n]
-            else: 
-                ax_1 = axes[row_n, col_n]
-            self.plot(
-                df=df, col_x=col_x, col_y=col_y, ax=ax_1, hue_col=hue_col)
+        self, n_rows, n_cols, axes, row_n, col_n, df, col_x, col_y, hue_col=None, title=None):
+        if n_rows == 1 and n_cols == 1:
+            ax_1 = axes
+        elif n_rows == 1:
+            ax_1 = axes[col_n]
+        elif n_cols == 1:
+            ax_1 = axes[row_n]
+        else: 
+            ax_1 = axes[row_n, col_n]
+        plot = self.plot(
+            df=df, col_x=col_x, col_y=col_y, ax=ax_1, hue_col=hue_col, title=title)
+        return plot
 
     def plot_vals_separately(
-            self, df, filter_col, col_x, col_y, names_list=None,  n_cols=3, hue_col=None):
+            self, df, filter_col, col_x, col_y, names_list=None,  n_cols=3, hue_col=None, plot_width=8, plot_height=6):
         if names_list is None:
             names_list = df[filter_col].unique()
         if len(names_list) < n_cols:
             n_cols = len(names_list)
         n_rows = math.ceil(len(names_list) / n_cols)
-        fig, axes = plt.subplots(ncols=n_cols, nrows=n_rows)
+        if plot_width == None:
+            plot_width, plot_height = 8, 6
+        fig, axes = plt.subplots(ncols=n_cols, nrows=n_rows,
+                                 figsize=(plot_width, plot_height))
         col_n = -1
         for ind in range(len(names_list)):
-            row_n = ind % n_cols
+            print(ind)
+            row_n = ind // n_cols
             col_n += 1
             sub_df = df[df[filter_col] == names_list[ind]]
             print('n_rows: ' + str(n_rows))
@@ -177,7 +198,8 @@ class Plots():
             print('col_n: ' + str(col_n))
             print('row_n: ' + str(row_n))
 
-            self.plot_wrapper(
-                n_rows=n_rows, n_cols=n_cols, axes=axes, df=sub_df, col_x=col_x, col_y=col_y, row_n=row_n, col_n=col_n, hue_col=hue_col)
+            plot = self.plot_wrapper(
+                n_rows=n_rows, n_cols=n_cols, axes=axes, df=sub_df, col_x=col_x, col_y=col_y, row_n=row_n, col_n=col_n, hue_col=hue_col, title=names_list[ind])
             if (col_n - 1) == n_cols:
                 col_n = -1
+        return fig
