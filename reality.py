@@ -1,8 +1,10 @@
+
 import datetime
 import numpy as np
 import pandas as pd
 import yfinance as yf
 from abc import ABC, abstractmethod
+from accounts import *
 from datetime import datetime, timedelta
 from scipy.stats import t, norm
 
@@ -51,7 +53,7 @@ class Reality():
         """Account totals of the person are calculated at the end of the period
         """
 
-        for account in person.broker_accs:
+        for account in person.account_list:
             account.calculate_inst_amount_wraper()
 
     def calculate_all_peeople_accs_totals(self):
@@ -112,8 +114,8 @@ class RealityDataCollect():
 
     def save_person_accounts_data(self, person):
         accs_dict = {}
-        for account in person.broker_accs:
-            accs_dict[account.broker_name] = self.save_person_account_data(account=account)
+        for account in person.account_list:
+            accs_dict[account.company_name] = self.save_person_account_data(account=account)
         return accs_dict
 
     def save_person_account_data(self, account):
@@ -138,53 +140,56 @@ class RealityDataCollect():
 class Person():
 
     def __init__(
-            self, name, starting_age, starting_money, current_monthly_income, reality, broker_acounts=[]):
+            self, name, starting_age, starting_money, current_monthly_income, reality, account_list=[]):
         self.name = name
         self.age = starting_age
         self.money = starting_money
         self.current_monthly_income = current_monthly_income 
-        self.broker_accs = broker_acounts
+        self.account_list = account_list
         self.investing_behaviour = {}
         self.reality = reality
 
-    def add_account(self, broker_name):
-        if broker_name not in self.reality.broker_list:
+    def add_account(self, company_name, type_, account_type):
+        if company_name not in self.reality.broker_list:
             print("Broker does not exist in this reality")
             return
-        account = Account(owner=self, broker_name=broker_name)
-        self.broker_accs.append(account)
+        account = account_factory(owner=self, 
+                                  type_ = type_, 
+                                  company_name=company_name, 
+                                  account_type=account_type)
+        self.account_list.append(account)
 
     def delete_account(self, account):
-        self.broker_accs.remove(account)
+        self.account_list.remove(account)
 
     def add_instrument_to_account(self, account_name, instrument_name):
         acc = self.get_account_by_name(account_name=account_name)
         if acc is None:
             print('Account does not belong to the person - add inst')
             return
-        acc_index =  self.broker_accs.index(acc)
+        acc_index =  self.account_list.index(acc)
         print(acc_index) 
-        self.broker_accs[acc_index].instrument_dict[instrument_name] = 0
+        self.account_list[acc_index].instrument_dict[instrument_name] = 0
         print('instrument dict')
-        print(self.broker_accs[acc_index].instrument_dict)
+        print(self.account_list[acc_index].instrument_dict)
 
     def add_money_to_account(self, account_name, money):
         acc = self.get_account_by_name(account_name=account_name)
         if acc is None:
             print('Account does not belong to this person- add money acc')
             return
-        acc_index =  self.broker_accs.index(acc)
+        acc_index =  self.account_list.index(acc)
         self.money -= money
-        self.broker_accs[acc_index].add_money(money=money)
-        print(self.broker_accs[acc_index].account_amount)
+        self.account_list[acc_index].add_money(money=money)
+        print(self.account_list[acc_index].account_amount)
 
     def take_money_from_account(self, account_name, money):
         acc = self.get_account_by_name(account_name=account_name)
         if acc is None:
             print('Account does not belong to this person-take money acc')
             return
-        acc_index =  self.broker_accs.index(acc)
-        self.broker_accs[acc_index].take_out_money(money=money)
+        acc_index =  self.account_list.index(acc)
+        self.account_list[acc_index].take_out_money(money=money)
 
     def add_money_to_instrument(self, account, instrument_name, money):
         account.transfer_money_to_instrument(
@@ -212,81 +217,33 @@ class Person():
                     account=acc, instrument_name=instrument_name, 
                     money=(self.current_monthly_income
                           * behaviour_dict[account_name][instrument_name]))
-                
+
+    def spend_money(self, amount, account_name=None):
+        if account==None:
+            self.money = self.money - amount
+            return
+        account = self.get_account_by_name(account_name=account_name)
+        if account is None:
+            print(
+                self.name + ' person does not have an activa account with broker ' + account_name)
+        else:
+            pass
+
+
     def get_account_by_name(self, account_name):
         print(account_name)
-        for account in  self.broker_accs:
-            print(account.broker_name)
-            if account.broker_name == account_name:
+        for account in  self.account_list:
+            print(account.company_name)
+            if account.company_name == account_name:
                 print('yes')
                 return account
             
      
-class Account():
-
-    def __init__(self, owner, broker_name, starting_instrument_dict={}, starting_amount=0):
-        self.broker_name = broker_name
-        self.owner = owner
-        self.instrument_dict = starting_instrument_dict
-        self.account_amount  = starting_amount
-
-    def add_money(self, money):
-        self.account_amount += money
-
-    def take_out_money(self, money):
-        self.account_amount -= money
-
-    def add_instrument(self, instrument):
-        self.instrument_dict[instrument.name] = 0
-    
-    def delete_instrument(self, instrument):
-        if self.instrument_dict[instrument.name] != 0:
-            print('can delete account, there are still money in it')
-            return
-        del self.instrument_dict[instrument.name]
-
-    def calculate_instrument_amount(self, instrument_name):
-        if instrument_name not in self.instrument_dict:
-            print('Instrument is not active in current account')
-            return
-        print(instrument_name)
-        print(self.owner.reality.instrument_data[instrument_name])
-        curr_price = self.owner.reality.instrument_data[instrument_name][-1]
-        prev_price = self.owner.reality.instrument_data[instrument_name][-2]
-        print(instrument_name)
-        print('curr_price')
-        print(str(curr_price))
-        print('previous_price')
-        print(str(prev_price))
-        multip = (curr_price) / (prev_price)
-        print('multip')
-        print(type(multip))
-        print(multip)
-        self.instrument_dict[instrument_name] = self.instrument_dict[instrument_name] * multip
-        print(self.instrument_dict[instrument_name])
-
-    def calculate_inst_amount_wraper(self):
-        for instrument_name in self.instrument_dict:
-            self.calculate_instrument_amount(instrument_name=instrument_name)
-
-    def transfer_money_to_instrument(self, instrument_name, money):
-        if money > self.account_amount:
-            print('Not enough money for the transaction')
-            return
-        self.account_amount = self.account_amount - money
-        self.instrument_dict[instrument_name] = (self.instrument_dict[instrument_name] + money)
-        print('money')
-        print(money)
-        print('instrument ' + instrument_name  + ": ")
-        print(self.instrument_dict[instrument_name])
-
-
 class  Instrument(ABC):
 
     def __init__(self, name, type_):
         self.name = name
         self.type = type_
-        self.multip = 1
 
     @abstractmethod
     def execute_time_period(self):
@@ -333,7 +290,7 @@ class Index(Instrument):
         self.returns_mean = loc
         self.returns_scale = scale
 
-    def calculate_current_price(self):
+    def calculate_current_price(self, **kwargs):
         curr_return = norm.rvs( 
                             loc=self.returns_mean, 
                             scale=self.returns_scale, 
@@ -358,13 +315,6 @@ class Index(Instrument):
         self.calculate_current_price()
 
 
-class TransactionAccount(Instrument):
-
-    def __init__(self, name, type_='trans_account'):
-        super().__init__(type_, name)
-
-    def execute_time_period(self):
-        pass
 
 
 
