@@ -125,14 +125,14 @@ class DFCreator():
     
     def create_index_df(self, ins_dict, inst_list):
         index_list = self.get_index_list(inst_list=inst_list)
-        indexes_df = pd.DataFrame(columns=['t', 'name', 'price'])
+        indexes = ['t', 'name', 'price']
+        indexes_df = pd.DataFrame(columns=indexes)
         for index_name in index_list:
-            t = [t for t in range(1, len(ins_dict[index_name]) + 1)]
-            price_ts = ins_dict[index_name]
-            index_df = pd.DataFrame(
-                {'t': t, 
-                 'name': index_name, 
-                 'price': price_ts})
+            price_dict = ins_dict[index_name]
+            index_df = pd.DataFrame(list(price_dict.items()),
+                                    columns = ['t', 'price'])
+            index_df['name'] = index_name
+            index_df = index_df[indexes] 
             indexes_df = pd.concat([indexes_df, index_df])
         return indexes_df
 

@@ -10,6 +10,12 @@ class AccountRulesCreator(ABC):
         
     def execute_take_out_money_rules(self, amount):
         return True
+    
+    def execute_add_instrument_rules(self):
+        return True
+    
+    def execute_delete_instrument_rules(self):
+        return True
 
     @abstractmethod
     def execute_account_management_payment_rules(self):
@@ -86,4 +92,35 @@ ACCOUNT_RULES_DICT = {'kb':
                         'kbmu': KBMujUcet(),
                         'kbuj': KBUcetJunior()
                         }, 
-                        "savings":{}}}
+                        "savings":{},
+                        'broker': 
+                        {'kbmu': KBMujUcet()
+                         }
+                         }
+}
+
+class CountryRules(ABC):
+
+    @abstractmethod
+    def set_capital_gains_tax(self):
+        pass
+
+class CzechRules(CountryRules):
+    PAYMENT_MONTH = 4
+
+    def add_to_tax_base(self, month):
+        if month < CzechRules.PAYMENT_MONTH:
+            return 'next'
+        else:
+            return 'current'
+
+    def get_income_tax_amount(self, tax_base):
+        if tax_base <= 1935552:
+            return 0.15 * tax_base
+        else:
+            return 0.15 * 1935552 + 0.23 * (tax_base - 1935552)
+
+TAX_RULES_DICT = {'czech': CzechRules()}
+
+def tax_rules_factory(nationality):
+    return TAX_RULES_DICT[nationality]
