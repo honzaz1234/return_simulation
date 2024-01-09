@@ -1,0 +1,3 @@
+*odecitani platby na fondu 
+*pridani dluhopisu
+*pridani pravidel pro kupovani index - casti instrumentu atd.

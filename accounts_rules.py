@@ -119,6 +119,9 @@ class CzechRules(CountryRules):
             return 0.15 * tax_base
         else:
             return 0.15 * 1935552 + 0.23 * (tax_base - 1935552)
+    
+    def set_capital_gains_tax(self):
+        pass
 
 TAX_RULES_DICT = {'czech': CzechRules()}
 

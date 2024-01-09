@@ -1,12 +1,13 @@
 import calendar
 from accounts import *
 from instruments import *
+from scipy.stats import beta
 
 class Reality():
 
 
     def __init__(
-            self, person_list=[], broker_list=[], instrument_list=[], starting_time_period=0, starting_date = (1, 2024)):
+            self, person_list=[], broker_list=[], instrument_list=[], starting_time_period=0, starting_date = [1, 2024]):
         self.person_list = person_list
         self.broker_list = broker_list
         self.instrument_list = instrument_list
@@ -15,6 +16,9 @@ class Reality():
         self.t = starting_time_period
         self.month_year = starting_date
         self.days_year = self.calculate_days_year(year=self.month_year[1])
+        self.beta_d = []
+        self.repo_ts = []
+        self.repo_lag = -4
 
     def change_period(self):
         if self.month_year[0] < 12:
@@ -108,6 +112,27 @@ class Reality():
     def reset_tax_bases(self):
         for person in self.person_list:
             self.reset_person_tax_base(person=person)
+
+    def set_repo_distribution(self):
+        df_all = pd.read_csv('repo.csv', index_col=0)
+        df_all["Datum"] = pd.to_datetime(df_all["Datum"])
+        df_all.set_index("Datum", inplace=True)
+        repo_pct =  df_all[df_all.index > '2012-11-01']['1 měsíc'].dropna()
+        a, b, loc, scale = beta.fit(np.array(repo_pct, dtype=float))
+        self.beta_d = [a, b, loc, scale]
+        print(self.beta_d)
+        self.repo_ts = repo_pct[self.repo_lag:]
+
+    def generate_repo_rate(self, coeff=0.6):
+        repo_rate = beta.rvs(a=self.beta_d[0],
+                       b=self.beta_d[1],
+                       loc=self.beta_d[2], 
+                        scale=self.beta_d[3], 
+                        size=1)
+        calc_list = self.repo_ts[self.repo_lag:] + repo_rate
+        final_price = (sum(calc_list)/len(calc_list)) * coeff
+        self.repo_ts.append(final_price)
+
         
     def execute_period(self, behaviour_dict):
         """changes to the accounts/indexes employed and adding money to accounts are decided at the beginning of the period
@@ -116,6 +141,7 @@ class Reality():
         print('time_period: ' )
         self.change_period()
         print(str(self.t))
+        self.generate_repo_rate()
         self.reset_tax_bases()
         self.execute_people_behaviour(behaviour_dict=behaviour_dict)
         self.execute_instruments_period()
